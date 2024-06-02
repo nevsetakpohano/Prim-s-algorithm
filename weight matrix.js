@@ -43,7 +43,7 @@ function generateH() {
   for (let i = 0; i < qntnNodes; i++) {
     matrix[i] = [];
     for (let j = 0; j < qntnNodes; j++) {
-      matrix[i][j] = C[i][j] === 0 ? 0 : 1;
+      matrix[i][j] = D[i][j] != D[j][i] ? 1 : 0;
     }
   }
   return matrix;
