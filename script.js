@@ -1,3 +1,53 @@
+class Graph {
+  constructor() {
+    this.adjList = new Map();
+  }
+
+  addNode(node) {
+    if (!this.adjList.has(node)) {
+      this.adjList.set(node, []);
+    }
+  }
+
+  addEdge(node1, node2, weight) {
+    this.adjList.get(node1).push({ node: node2, weight: weight });
+    this.adjList.get(node2).push({ node: node1, weight: weight });
+  }
+
+  removeNode(node) {
+    if (this.adjList.has(node)) {
+      for (let [key, edges] of this.adjList) {
+        this.adjList.set(
+          key,
+          edges.filter((edge) => edge.node !== node)
+        );
+      }
+      this.adjList.delete(node);
+    }
+  }
+
+  removeEdge(node1, node2) {
+    if (this.adjList.has(node1) && this.adjList.has(node2)) {
+      this.adjList.set(
+        node1,
+        this.adjList.get(node1).filter((edge) => edge.node !== node2)
+      );
+      this.adjList.set(
+        node2,
+        this.adjList.get(node2).filter((edge) => edge.node !== node1)
+      );
+    }
+  }
+
+  getNodes() {
+    return Array.from(this.adjList.keys());
+  }
+
+  getEdges(node) {
+    return this.adjList.get(node);
+  }
+}
+
 const canvasNeNapr = document.getElementById("neNapr");
 const canvasNapr = document.getElementById("napr");
 const contextNeNapr = canvasNeNapr.getContext("2d");
@@ -191,12 +241,15 @@ function drawLineWeighted(fromNode, toNode, context, colour, lineWidth) {
   context.moveTo(startX, startY);
   context.lineTo(endX, endY);
   context.stroke();
-
-  const midX = (startX + endX) / 2;
-  const midY = (startY + endY) / 2;
-  context.fillStyle = "black";
-  context.font = "16px Times New Roman";
-  context.fillText(`${W[fromNode][toNode]}`, midX, midY);
+  context.closePath();
+  context.fillStyle = colour;
+  context.font = "14px Times New Roman";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  const weight = W[fromNode][toNode];
+  const textX = (startX + endX) / 2;
+  const textY = (startY + endY) / 2;
+  context.fillText(`${weight}`, textX, textY);
 }
 
 function drawLine(fromNode, toNode, context, colour, lineWidth) {
@@ -210,65 +263,40 @@ function drawLine(fromNode, toNode, context, colour, lineWidth) {
   context.moveTo(startX, startY);
   context.lineTo(endX, endY);
   context.stroke();
+  context.closePath();
 }
 
-function drawEdges(matrix, context) {
-  for (let i = 0; i < qntnNodes; i++) {
-    for (let j = 0; j < qntnNodes; j++) {
-      if (matrix[i][j] === 1) {
-        drawLineWeighted(j, i, context, "black", 2);
-        if (i === j) {
-          context.beginPath();
-          if (i < 5) {
-            context.arc(
-              nodePositions[i].x,
-              nodePositions[i].y - radius * 2,
-              radius,
-              -Math.PI / 2,
-              (3 * Math.PI) / 2,
-              true
-            );
-            context.stroke();
-          } else {
-            context.arc(
-              nodePositions[i].x,
-              nodePositions[i].y + radius * 2,
-              radius,
-              Math.PI / 2,
-              (-3 * Math.PI) / 2,
-              true
-            );
-            context.stroke();
-          }
-        }
-        context.stroke();
+function drawAllEdges(matrix, context) {
+  for (let i = 0; i < matrix.length; i++) {
+    for (let j = 0; j < matrix[i].length; j++) {
+      if (matrix[i][j] > 0) {
+        drawLineWeighted(i, j, context, "black", 2);
       }
     }
   }
 }
 
-drawEdges(matrixSymmetrical, contextNeNapr);
+drawAllEdges(W, contextNeNapr);
+drawAllEdges(W, contextNapr);
+
 drawAllNodes(contextNeNapr, "#DAB785", "black");
-drawEdges(matrixSymmetrical, contextNapr);
 drawAllNodes(contextNapr, "#DAB785", "black");
 
-function matrixToAdjList(matrix) {
-  let adjList = {};
-  for (let i = 0; i < matrix.length; i++) {
-    adjList[i] = [];
-    for (let j = 0; j < matrix[i].length; j++) {
-      if (matrix[i][j] === 1) {
-        adjList[i].push({ node: j, weight: W[i][j] });
-      }
+const graph = new Graph();
+nodePositions.forEach((_, index) => graph.addNode(index));
+W = generateW(W);
+
+for (let i = 0; i < qntnNodes; i++) {
+  for (let j = i + 1; j < qntnNodes; j++) {
+    if (W[i][j] > 0) {
+      graph.addEdge(i, j, W[i][j]);
     }
   }
-  return adjList;
 }
 
-let adjList = matrixToAdjList(matrixSymmetrical);
-console.log(adjList);
-steps = 0;
+console.log(graph);
 
+let steps = 0;
 const minWeigh = new Array(qntnNodes).fill(Infinity);
 const parent = new Array(qntnNodes).fill(null);
 const visited = new Array(qntnNodes).fill(false);
@@ -276,7 +304,7 @@ minWeigh[0] = 0;
 let totalWeigh = 0;
 let mst = [];
 
-function prim(context) {
+function prim(graph, context) {
   let u = -1;
   for (let j = 0; j < qntnNodes; j++) {
     if (!visited[j] && (u === -1 || minWeigh[j] < minWeigh[u])) {
@@ -286,14 +314,14 @@ function prim(context) {
   visited[u] = true;
   drawNode(u, context, "rgba(154, 19, 19, 1)", "white");
 
-  for (const { node: v, weight } of adjList[u]) {
+  for (const { node: v, weight } of graph.getEdges(u)) {
     if (!visited[v] && weight < minWeigh[v]) {
       minWeigh[v] = weight;
       parent[v] = u;
     }
   }
   if (parent[u] != null) {
-    drawLine(parent[u], u, context, "rgba(154, 19, 19, 0.8)", 4);
+    drawLine(parent[u], u, context, "rgba(154, 19, 19, 1)", 4);
     mst.push([parent[u], u, minWeigh[u]]);
     totalWeigh += minWeigh[u];
   }
@@ -301,7 +329,7 @@ function prim(context) {
 
 document.querySelector("button").addEventListener("click", () => {
   if (steps < qntnNodes) {
-    prim(contextNapr);
+    prim(graph, contextNapr);
     steps++;
     console.log(steps + " step done");
   } else if (steps === qntnNodes) {
